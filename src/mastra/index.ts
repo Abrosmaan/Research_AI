@@ -3,18 +3,42 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Mastra } from '@mastra/core';
+import { VercelDeployer } from '@mastra/deployer-vercel';
 import { LibSQLStore } from '@mastra/libsql';
 import { createPhaseAgentsWithMemory } from './agents/phase-agents.js';
 import { createResearchAgent } from './agents/research-agent.js';
 import { createResearchExecutionWorkflow } from './workflows/research-execution-workflow.js';
 
-const dbDir = path.join(process.cwd(), '.mastra');
-mkdirSync(dbDir, { recursive: true });
-const dbPath = path.join(dbDir, 'mastra.db');
-const storage = new LibSQLStore({
-  id: 'mastra-storage',
-  url: pathToFileURL(dbPath).href,
-});
+const isVercelRuntime = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_URL);
+const storageUrlFromEnv = process.env.MASTRA_STORAGE_URL;
+
+function createStorage() {
+  if (storageUrlFromEnv) {
+    // Use external storage in production/serverless deployments.
+    return new LibSQLStore({
+      id: 'mastra-storage',
+      url: storageUrlFromEnv,
+    });
+  }
+
+  if (isVercelRuntime) {
+    // Vercel has ephemeral filesystem; avoid writing local DB files.
+    return new LibSQLStore({
+      id: 'mastra-storage',
+      url: ':memory:',
+    });
+  }
+
+  const dbDir = path.join(process.cwd(), '.mastra');
+  mkdirSync(dbDir, { recursive: true });
+  const dbPath = path.join(dbDir, 'mastra.db');
+  return new LibSQLStore({
+    id: 'mastra-storage',
+    url: pathToFileURL(dbPath).href,
+  });
+}
+
+const storage = createStorage();
 
 // Tracing: persist traces to storage for Mastra Studio + optional Mastra Cloud
 // https://mastra.ai/docs/observability/tracing/overview
@@ -73,6 +97,7 @@ researchExecutionWorkflow = createResearchExecutionWorkflow({
 const researchAgent = createResearchAgent(storage, researchExecutionWorkflow);
 
 const mastra = new Mastra({
+  deployer: new VercelDeployer(),
   agents: {
     researchAgent,
     intakeAgent,

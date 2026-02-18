@@ -23,6 +23,22 @@ You can start editing files inside the `src/mastra` directory. The development s
 
 The project is wired for [Mastra Tracing](https://mastra.ai/docs/observability/tracing/overview): agent runs, tool calls, and workflow steps can be persisted to storage and viewed in Studio. Configuration is in `src/mastra/index.ts` (DefaultExporter for Studio, optional CloudExporter and SensitiveDataFilter). Tracing is enabled when a compatible `@mastra/observability` package is available; otherwise the app runs without observability.
 
+## Deploy to Vercel
+
+This project is configured with `VercelDeployer` in `src/mastra/index.ts`, so `npm run build` generates Vercel Build Output in `.vercel/output`.
+
+- Install deps: `npm install`
+- Build locally: `npm run build`
+- Deploy on Vercel (Git integration or CLI) and test: `https://<your-project>.vercel.app/api/agents`
+
+### Required environment variables (Vercel)
+
+- `OPENAI_API_KEY` (or your model provider key)
+- `MASTRA_STORAGE_URL` (recommended external LibSQL/Postgres-backed URL for persistent storage)
+- `MASTRA_CLOUD_ACCESS_TOKEN` (optional, only if using `CloudExporter`)
+
+If `MASTRA_STORAGE_URL` is not set on Vercel, the app falls back to in-memory storage to avoid filesystem writes in serverless runtime.
+
 ## Learn more
 
 To learn more about Mastra, visit our [documentation](https://mastra.ai/docs/). Your bootstrapped project includes example code for [agents](https://mastra.ai/docs/agents/overview), [tools](https://mastra.ai/docs/agents/using-tools), [workflows](https://mastra.ai/docs/workflows/overview), [scorers](https://mastra.ai/docs/evals/overview), and [observability](https://mastra.ai/docs/observability/overview).
