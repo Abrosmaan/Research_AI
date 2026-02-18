@@ -98,6 +98,7 @@ export type ResearchExecutionWorkflowHandle = {
       inputData: { prompt: string };
       requestContext?: import('@mastra/core/request-context').RequestContext;
     }): Promise<{ status: string; result?: unknown; error?: unknown }>;
+    cancel(): Promise<void>;
   }>;
 };
 
@@ -115,6 +116,12 @@ function resolveWorkflow(source: WorkflowSource, context: unknown): ResearchExec
  * Tool: run the full R&D Execution workflow (chain of phases A→F).
  * Use when the user wants to execute the formal pipeline on a clear initial prompt.
  * workflowSource: instance, or getter () => handle (for late binding when workflow is created after the agent).
+ *
+ * Why no workflow widget in chat? The workflow is started inside this tool, so the chat UI only
+ * sees a tool call + result. Studio's workflow widget appears when a run is started via the
+ * workflow API (e.g. "Run" from the workflow list). To get the widget, the client could either
+ * start the workflow directly (e.g. POST /workflows/researchExecution/run) when the user says
+ * "proceed", or use the returned workflowRunId/workflowId to open/link to the run in Studio.
  */
 export function createRunResearchExecutionWorkflowTool(workflowSource: WorkflowSource = null) {
   return createTool({
@@ -131,6 +138,8 @@ export function createRunResearchExecutionWorkflowTool(workflowSource: WorkflowS
           run: false,
           error: 'Workflow not available in this context',
           message: 'The pipeline could not be started (workflow not available). Please try again or use Research AI.',
+          workflowId: null,
+          workflowRunId: null,
         };
       }
       const run = await workflow.createRun();
@@ -139,10 +148,35 @@ export function createRunResearchExecutionWorkflowTool(workflowSource: WorkflowS
       requestContext.set(MASTRA_RESOURCE_ID_KEY, run.runId);
       // MessageHistory and prepare-memory-step read thread/resource from "MastraMemory", not the keys above
       requestContext.set('MastraMemory', { thread: { id: run.runId }, resourceId: run.runId });
-      const outcome = await run.start({
-        inputData: { prompt: inputData.prompt },
-        requestContext,
-      });
+
+      // Cap wait time so the tool doesn't hang forever (Phase F with tools can take 10+ min)
+      const WORKFLOW_RUN_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+      let outcome: { status: string; result?: unknown; error?: unknown };
+      try {
+        outcome = await Promise.race([
+          run.start({
+            inputData: { prompt: inputData.prompt },
+            requestContext,
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('WORKFLOW_TIMEOUT')), WORKFLOW_RUN_TIMEOUT_MS),
+          ),
+        ]);
+      } catch (err) {
+        const isTimeout = err instanceof Error && err.message === 'WORKFLOW_TIMEOUT';
+        if (isTimeout) {
+          await run.cancel().catch(() => {});
+          return {
+            run: true,
+            status: 'timeout',
+            message: `Pipeline did not finish within ${WORKFLOW_RUN_TIMEOUT_MS / 60_000} minutes and was canceled. Check server logs or run with a simpler prompt.`,
+            workflowId: 'researchExecution',
+            workflowRunId: run.runId,
+          };
+        }
+        throw err;
+      }
+
       const status = outcome.status;
       const errorStr =
         status === 'failed' && outcome.error != null
@@ -162,6 +196,9 @@ export function createRunResearchExecutionWorkflowTool(workflowSource: WorkflowS
         result,
         error: errorStr,
         message,
+        // So the chat UI can show the workflow run widget or link to it (Studio workflow runs started via API show the widget; tool-started runs need these to deep-link)
+        workflowId: 'researchExecution',
+        workflowRunId: run.runId,
       };
     },
   });

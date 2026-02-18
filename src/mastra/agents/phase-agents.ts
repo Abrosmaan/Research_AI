@@ -160,7 +160,7 @@ Pass through all prior fields and add phase E fields. Output only the structured
 
 function phaseFInstructions(): string {
   return `You are Phase F — VALIDATION & STATUS. ${CORE_RULES}
-You have internet-search and deep-research tools: use them to cross-check handoff claims or evidence if needed.
+You have internet-search and deep-research tools. Use them only if one quick check is essential; prefer validating from the handoff package alone to keep the step fast.
 Executor validates. Set status: SUCCESS (methods validated, money logic confirmed) | PARTIAL_SUCCESS (core works, details differ) | FAIL (methods or money logic invalid). executorFeedback: primaryReason, whatWouldHaveChangedResult (for learning).
 Pass through all prior fields and add phase F fields. Output only the structured JSON.`;
 }

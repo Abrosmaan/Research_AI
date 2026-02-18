@@ -14,6 +14,15 @@ Open [http://localhost:4111](http://localhost:4111) in your browser to access [M
 
 You can start editing files inside the `src/mastra` directory. The development server will automatically reload whenever you make changes.
 
+## Workflow runs: checking status and timeouts
+
+- **Is a run still working?** Check (1) the terminal where `mastra dev` / `mastra start` is running — you should see logs for each step and tool call; (2) in [Mastra Studio](http://localhost:4111), open **Workflows** and find the run by ID (the tool returns `workflowRunId`) to see step status.
+- **Timeouts:** If a workflow run exceeds **10 minutes**, the tool cancels it and returns a timeout message so the chat doesn’t hang. Phase F is instructed to use search tools only when essential to keep runs shorter.
+
+## Tracing
+
+The project is wired for [Mastra Tracing](https://mastra.ai/docs/observability/tracing/overview): agent runs, tool calls, and workflow steps can be persisted to storage and viewed in Studio. Configuration is in `src/mastra/index.ts` (DefaultExporter for Studio, optional CloudExporter and SensitiveDataFilter). Tracing is enabled when a compatible `@mastra/observability` package is available; otherwise the app runs without observability.
+
 ## Learn more
 
 To learn more about Mastra, visit our [documentation](https://mastra.ai/docs/). Your bootstrapped project includes example code for [agents](https://mastra.ai/docs/agents/overview), [tools](https://mastra.ai/docs/agents/using-tools), [workflows](https://mastra.ai/docs/workflows/overview), [scorers](https://mastra.ai/docs/evals/overview), and [observability](https://mastra.ai/docs/observability/overview).
